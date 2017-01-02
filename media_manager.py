@@ -37,6 +37,10 @@ class HumanReadable(object):
         return num
 
 class ID3Parser(object):
+    """
+    Parses text information frames, since these are the most
+    important.
+    """
     def __init__(self):
         pass
 
@@ -59,9 +63,10 @@ class ID3Parser(object):
         return sum([b & 0x7F for b in byte_arr])
     
 
-    def get_meta(self, filepath):
+    def get_metadata(self, filepath):
         """
         Get the metadata of the file at `filepath`
+        Returns a dict of ID3 frames IDs -> values
 
         References: 
         http://id3.org/id3v2.4.0-structure
@@ -71,7 +76,7 @@ class ID3Parser(object):
             #ID3 Header
             #'ID3'
             if struct.unpack('3s', f.read(3))[0].decode('utf-8') != 'ID3':
-                raise ParserException("Cannot parse non ID3v2") 
+                raise ParserException("Cannot parse non ID3v2 Tags") 
 
             #The major and minor version
             major_version, minor_version = struct.unpack('BB', f.read(2))
@@ -95,6 +100,8 @@ class ID3Parser(object):
             tag_size = self.get_size(struct.unpack('BBBB', f.read(4)))
 
             bytes_read = 0
+            fields = {}
+
             #Frames
             while bytes_read < tag_size: 
 
@@ -109,30 +116,71 @@ class ID3Parser(object):
                 flag1, flag2 = struct.unpack('BB', f.read(2))
     
                 frame_value, = struct.unpack('{}s'.format(frame_size), f.read(frame_size))
-                frame_value = frame_value.decode('utf-8')
-   
                 bytes_read += 10 + frame_size
 
-                print(bytes_read, tag_size)
+                #only parse text fields
+                if frame_id[0] != 'T':
+                    continue
 
-                print(frame_id, frame_value)
+                #FIXME: [1:] because there is a preceding \x00 byte
+                frame_value = frame_value.decode('utf-8')[1:]
+                fields[frame_id] = frame_value
 
+            return fields
+
+
+    def get_human_readable(self, filepath):
+        """
+        fields is a dict of ID3 frame identifiers -> values
+        Returns a dict with the fields: name, artist, album, genre, time
+        """
+        #strip extension and path
+        media_name = lambda fpath: os.path.splitext(os.path.basename(fpath))
+        fields = self.get_metadata(filepath)
+
+        human_readable = {}
+
+        #The name
+        name = []
+        if 'TIT1' in fields: 
+            name.append(fields['TIT1'])
+        if 'TIT2' in fields: 
+            name.append(fields['TIT2'])
+        if 'TIT3' in fields: 
+            name.append(fields['TIT3'])
+        if not name: 
+            name.append(media_name(filepath))
+        human_readable['name'] = ' '.join(name)
+
+        #The artist
+        artist = []
+        if 'TPE1' in fields:
+            artist.append(fields['TPE1'])
+        if 'TPE2' in fields and fields['TPE2'] not in artist:
+            artist.append(fields['TPE2'])
+        if 'TPE3' in fields and fields['TPE3'] not in artist:
+            artist.append(fields['TPE3'])
+        if 'TPE4' in fields and fields['TPE4'] not in artist:
+            artist.append(fields['TPE4'])
+        human_readable['artist'] = ' '.join(artist)
+
+        #Album
+        human_readable['album'] = fields.get('TALB', '')
+
+        #Genre
+        human_readable['genre'] = fields.get('TCON', '')
+
+        #Time
+        #TODO: fix this
+        human_readable['time'] = '0'
+
+        return human_readable
     
-    def print_bytes(self, config):
-
-        with open(config['sample_file'], "rb") as f:
-
-            byte = f.read(1)
-            count = 0
-            while byte != "" and count < 50:
-                print(byte, )
-                byte = f.read(1)
-    
-                count += 1
-
-                
 
 class MediaManager(object):
+    """
+    Manager for interfacing with media
+    """
     def __init__(self, configfile='./config.json'):
         with open(configfile) as cfile:
             self.config = json.load(cfile)
@@ -156,4 +204,5 @@ class MediaManager(object):
 if __name__ == "__main__":
     mmanager = MediaManager()
     id3 = ID3Parser()
-    id3.get_meta(mmanager.config['sample_file'])
+    print(id3.get_human_readable(mmanager.config['sample_file']))
+    #mmanager.get_media()
