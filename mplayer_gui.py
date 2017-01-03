@@ -7,7 +7,6 @@ from __future__ import unicode_literals
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
-
 from prompt_toolkit.enums import DEFAULT_BUFFER
 from prompt_toolkit.interface import CommandLineInterface
 from prompt_toolkit.key_binding.defaults import load_key_bindings
@@ -21,6 +20,8 @@ from prompt_toolkit.filters.base import Filter
 from prompt_toolkit.cache import memoized
 from prompt_toolkit.contrib.completers import WordCompleter
 from prompt_toolkit.layout.menus import CompletionsMenu
+
+from media_manager import MediaManager
 
 def dbg(*msg):
     """
@@ -61,25 +62,29 @@ class InteractMode(Filter):
 
     
 
-class MusicFiles():
+class MediaFiles(object):
     """
     Adaptor for interfacing with music files 
     """
-    def __init__(self):
-        self.music_list = ["Song {}".format(i) for i in range(100)]
+    def __init__(self, dummy=False):
+        if dummy:
+            self.media_list = ["Song {}".format(i) for i in range(100)]
+        else:
+            self.media_manager = MediaManager()
+            self.media_list = [ media['metadata']['name'] for media in self.media_manager.get_media()]
         self.document = Document(
-            ''.join(["{}\n".format(m) for m in self.music_list]))
+            ''.join(["{}\n".format(m) for m in self.media_list]))
                
     def as_document(self):
         return self.document
         
 
-class BufferManager():
+class BufferManager(object):
     """
     Manages buffers
     """
     def  __init__(self):
-        self.music_files = MusicFiles()
+        self.media_files = MediaFiles()
         self.buffers = {
             DEFAULT_BUFFER: Buffer(is_multiline=True,
                                    completer=self.get_completer(),
@@ -87,7 +92,7 @@ class BufferManager():
 
             'LIBRARY': Buffer(is_multiline=True,
                               read_only=True,
-                              initial_document=self.music_files.as_document()),
+                              initial_document=self.media_files.as_document()),
             
             'COMMAND': Buffer(),
         }
@@ -109,10 +114,10 @@ class BufferManager():
     
     def get_completer(self):
         if not hasattr(self, 'completer'):
-            self.completer = WordCompleter(['Song 1', 'Song 2', 'Song 3'], ignore_case=True)
+            self.completer = WordCompleter(self.media_files.media_list, ignore_case=True)
         return self.completer
     
-class MusicPlayer():
+class MusicPlayer(object):
     def __init__(self):
         self.buffers = BufferManager()
         self.registry = load_key_bindings()
