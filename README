@@ -1,1 +1,6 @@
-Command line music player.
+A command line music player. The interface with inspired by VIM.
+
+Dependencies:
+
+python_prompt_toolkit
+vlc player 

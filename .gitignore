@@ -1,2 +1,5 @@
 *.mp3
 config.json
+*.swp
+__pycache__/*
+data/*
